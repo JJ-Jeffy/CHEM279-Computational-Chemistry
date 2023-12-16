@@ -292,20 +292,16 @@ void optimize_geometry(Molecule& mol, double tol, int maxiter, double h){
 // Function to calculate the hessian using finite difference of the gradient 
 mat calculate_hessian(Molecule mol, double h){
     mat hessian = zeros<mat>(3*mol.numAtoms, 3*mol.numAtoms);
+    int numCoordinates = 3*mol.numAtoms;
 
-    // calculate the force at the initial point
-    mat forces = calculate_total_force(mol);
+    //finite difference of the gradient
+    mat gradient = calculate_total_force(mol);
 
-    int numAtoms = mol.numAtoms;
-    int numCoordinates = 3*numAtoms;
-
-    mat coords = mol.coords;
-
-    // finite difference approximation of the hessian using the gradient
-    for(int i = 0; i < numCoordinates; i++){
-        for(int j = i; j < numCoordinates; j++){
-            mat save_coords_plus = coords;
-            mat save_coords_minus = coords;
+    // calculate the hessian matrix
+    for (int i = 0; i < numCoordinates; i++){
+        for(int j= i; j < numCoordinates; j++){
+            mat save_coords_plus = mol.coords;
+            mat save_coords_minus = mol.coords;
 
             // perturb the coordinates for finite differences 
             save_coords_plus(i/3, i%3) += h;
@@ -315,17 +311,18 @@ mat calculate_hessian(Molecule mol, double h){
             save_coords_minus(j/3, j%3) -= h;
 
             // central finite difference formula
-            mat forces_plus = calculate_total_force(save_coords_plus, mol.sigma, mol.epsilon);
-            mat forces_minus = calculate_total_force(save_coords_minus, mol.sigma, mol.epsilon);
+            mat gradient_plus = calculate_total_force(save_coords_plus, mol.sigma, mol.epsilon);
+            mat gradient_minus = calculate_total_force(save_coords_minus, mol.sigma, mol.epsilon);
 
-            double second_derivative = (forces_plus(i/3, i%3) - forces_minus(i/3, i%3) - forces_plus(j/3, j%3) + forces_minus(j/3, j%3))/(4*h*h);
+            double second_derivative = - (gradient_plus(i/3, i%3) - gradient_minus(i/3, i%3))/(2*h); 
 
             // set the hessian element
             hessian(i,j) = second_derivative;
+
+            // set the hessian element
             hessian(j,i) = second_derivative;
         }
     }
-
     return hessian;
 }
 
@@ -454,7 +451,6 @@ mat generate_mass_weighted_hessian(mat hessian, Molecule& mol){
         }
     }
 
-    cout << "The mass matrix is: " << endl;
     cout << mass_matrix << endl;
 
     // generate the inverse of the mass matrix
